@@ -21,6 +21,7 @@ import org.springframework.util.ObjectUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +42,7 @@ public class ManagerService {
 
         if (!isTodoOwner(todo, user)) {
             throw new InvalidRequestException("담당자를 등록하려고 하는 유저와 일정을 만든 유저가 유효하지 않습니다.");
+
         }
 
         User managerUser = userFinder.findManagerUser(managerSaveRequest.getManagerUserId());
