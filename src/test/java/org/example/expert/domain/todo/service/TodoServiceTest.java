@@ -8,6 +8,9 @@ import org.example.expert.domain.todo.dto.response.TodoResponse;
 import org.example.expert.domain.todo.dto.response.TodoSaveResponse;
 import org.example.expert.domain.todo.entity.Todo;
 import org.example.expert.domain.todo.repository.TodoRepository;
+import org.example.expert.domain.todo.service.component.TodoFinder;
+import org.example.expert.domain.todo.service.component.TodoReader;
+import org.example.expert.domain.todo.service.component.TodoWriter;
 import org.example.expert.domain.user.entity.User;
 import org.example.expert.domain.user.enums.UserRole;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -35,7 +39,11 @@ import static org.mockito.Mockito.verify;
 class TodoServiceTest {
 
     @Mock
-    private TodoRepository todoRepository;
+    private TodoWriter todoWriter;
+    @Mock
+    private TodoReader todoReader;
+    @Mock
+    private TodoFinder todoFinder;
     @Mock
     private WeatherClient weatherClient;
 
@@ -55,7 +63,7 @@ class TodoServiceTest {
         User user = User.fromAuthUser(authUser);
         Todo todo = new Todo(request.getTitle(), request.getContents(), "맑음", user);
 
-        given(todoRepository.save(any(Todo.class))).willReturn(todo);
+        doNothing().when(todoWriter).create(any(Todo.class));
         //when
         TodoSaveResponse todoSaveResponse = todoService.saveTodo(authUser, request);
         //then
@@ -64,7 +72,7 @@ class TodoServiceTest {
         assertEquals("굿데이",todoSaveResponse.getWeather());
 
         verify(weatherClient, times(1)).getTodayWeather();
-        verify(todoRepository, times(1)).save(any(Todo.class));
+        verify(todoWriter, times(1)).create(any(Todo.class));
 
     }
 
@@ -83,7 +91,7 @@ class TodoServiceTest {
         ReflectionTestUtils.setField(todo2,"id", 2L);
         List<Todo> mockTodos = List.of(todo1,todo2);
         Page<Todo> mockPage = new PageImpl<>(mockTodos, pageable, mockTodos.size());
-        given(todoRepository.findAllByOrderByModifiedAtDesc(pageable)).willReturn(mockPage);
+        given(todoReader.findTodosWithUserOrderByModifiedAtDesc(pageable)).willReturn(mockPage);
 
         //when
         Page<TodoResponse> responsePage = todoService.getTodos(page, size);
@@ -91,7 +99,7 @@ class TodoServiceTest {
         //then
 
         assertEquals(todos.size(),2);
-        verify(todoRepository, times(1)).findAllByOrderByModifiedAtDesc(pageable);
+        verify(todoReader, times(1)).findTodosWithUserOrderByModifiedAtDesc(pageable);
     }
 
     @Test
@@ -103,7 +111,7 @@ class TodoServiceTest {
         Todo todo = new Todo("title", "asdasd", "맑음", user);
         long todoId = 1L;
         ReflectionTestUtils.setField(todo,"id", todoId);
-        given(todoRepository.findByIdWithUser(todoId)).willReturn(Optional.of(todo));
+        given(todoFinder.findWithUser(todoId)).willReturn(todo);
         //when
         TodoResponse todoResponse = todoService.getTodo(todoId);
         //then
@@ -114,7 +122,7 @@ class TodoServiceTest {
     public void 없는_일정_조회_시_InvalidRequestException_을_던진다() {
         //given
         long todoId = 1L;
-        given(todoRepository.findByIdWithUser(todoId)).willReturn(Optional.empty());
+        given(todoFinder.findWithUser(todoId)).willThrow(new InvalidRequestException("Todo not found"));
         //when & Then
         InvalidRequestException e = assertThrows(InvalidRequestException.class, () -> todoService.getTodo(todoId), "Todo not found");
 

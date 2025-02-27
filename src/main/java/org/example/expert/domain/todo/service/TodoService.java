@@ -9,6 +9,9 @@ import org.example.expert.domain.todo.dto.response.TodoResponse;
 import org.example.expert.domain.todo.dto.response.TodoSaveResponse;
 import org.example.expert.domain.todo.entity.Todo;
 import org.example.expert.domain.todo.repository.TodoRepository;
+import org.example.expert.domain.todo.service.component.TodoFinder;
+import org.example.expert.domain.todo.service.component.TodoReader;
+import org.example.expert.domain.todo.service.component.TodoWriter;
 import org.example.expert.domain.user.dto.response.UserResponse;
 import org.example.expert.domain.user.entity.User;
 import org.springframework.data.domain.Page;
@@ -22,8 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TodoService {
 
-    private final TodoRepository todoRepository;
     private final WeatherClient weatherClient;
+    private final TodoWriter todoWriter;
+    private final TodoReader todoReader;
+    private final TodoFinder todoFinder;
 
     @Transactional
     public TodoSaveResponse saveTodo(AuthUser authUser, TodoSaveRequest todoSaveRequest) {
@@ -31,18 +36,18 @@ public class TodoService {
 
         String weather = weatherClient.getTodayWeather();
 
-        Todo newTodo = new Todo(
+        Todo todo = new Todo(
                 todoSaveRequest.getTitle(),
                 todoSaveRequest.getContents(),
                 weather,
                 user
         );
-        Todo savedTodo = todoRepository.save(newTodo);
+        todoWriter.create(todo);
 
         return new TodoSaveResponse(
-                savedTodo.getId(),
-                savedTodo.getTitle(),
-                savedTodo.getContents(),
+                todo.getId(),
+                todo.getTitle(),
+                todo.getContents(),
                 weather,
                 new UserResponse(user.getId(), user.getEmail())
         );
@@ -51,7 +56,7 @@ public class TodoService {
     public Page<TodoResponse> getTodos(int page, int size) {
         Pageable pageable = PageRequest.of(page - 1, size);
 
-        Page<Todo> todos = todoRepository.findAllByOrderByModifiedAtDesc(pageable);
+        Page<Todo> todos = todoReader.findTodosWithUserOrderByModifiedAtDesc(pageable);
 
         return todos.map(todo -> new TodoResponse(
                 todo.getId(),
@@ -65,8 +70,7 @@ public class TodoService {
     }
 
     public TodoResponse getTodo(long todoId) {
-        Todo todo = todoRepository.findByIdWithUser(todoId)
-                .orElseThrow(() -> new InvalidRequestException("Todo not found"));
+        Todo todo = todoFinder.findWithUser(todoId);
 
         User user = todo.getUser();
 

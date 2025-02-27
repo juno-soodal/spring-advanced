@@ -7,11 +7,16 @@ import org.example.expert.domain.manager.dto.response.ManagerResponse;
 import org.example.expert.domain.manager.dto.response.ManagerSaveResponse;
 import org.example.expert.domain.manager.entity.Manager;
 import org.example.expert.domain.manager.repository.ManagerRepository;
+import org.example.expert.domain.manager.service.component.ManagerFinder;
+import org.example.expert.domain.manager.service.component.ManagerReader;
+import org.example.expert.domain.manager.service.component.ManagerWriter;
 import org.example.expert.domain.todo.entity.Todo;
 import org.example.expert.domain.todo.repository.TodoRepository;
+import org.example.expert.domain.todo.service.component.TodoFinder;
 import org.example.expert.domain.user.entity.User;
 import org.example.expert.domain.user.enums.UserRole;
 import org.example.expert.domain.user.repository.UserRepository;
+import org.example.expert.domain.user.service.component.UserFinder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,24 +30,34 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doNothing;
 
 @ExtendWith(MockitoExtension.class)
 class ManagerServiceTest {
 
-    @Mock
-    private ManagerRepository managerRepository;
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private TodoRepository todoRepository;
     @InjectMocks
     private ManagerService managerService;
+
+    @Mock
+    private ManagerWriter managerWriter;
+
+    @Mock
+    private ManagerReader managerReader;
+
+    @Mock
+    private ManagerFinder managerFinder;
+
+    @Mock
+    private TodoFinder todoFinder;
+
+    @Mock
+    private UserFinder userFinder;
 
     @Test
     public void manager_목록_조회_시_Todo가_없다면_InvalidRequestException_에러를_던진다() {
         // given
         long todoId = 1L;
-        given(todoRepository.findById(todoId)).willReturn(Optional.empty());
+        given(todoFinder.find(todoId)).willThrow(new InvalidRequestException("Todo not found"));
 
         // when & then
         InvalidRequestException exception = assertThrows(InvalidRequestException.class, () -> managerService.getManagers(todoId));
@@ -61,14 +76,14 @@ class ManagerServiceTest {
 
         ManagerSaveRequest managerSaveRequest = new ManagerSaveRequest(managerUserId);
 
-        given(todoRepository.findById(todoId)).willReturn(Optional.of(todo));
+        given(todoFinder.find(todoId)).willReturn(todo);
 
         // when & then
         InvalidRequestException exception = assertThrows(InvalidRequestException.class, () ->
             managerService.saveManager(authUser, todoId, managerSaveRequest)
         );
 
-        assertEquals("담당자를 등록하려고 하는 유저가 일정을 만든 유저가 유효하지 않습니다.", exception.getMessage());
+        assertEquals("담당자를 등록하려고 하는 유저와 일정을 만든 유저가 유효하지 않습니다.", exception.getMessage());
     }
 
     @Test // 테스트코드 샘플
@@ -82,8 +97,8 @@ class ManagerServiceTest {
         Manager mockManager = new Manager(todo.getUser(), todo);
         List<Manager> managerList = List.of(mockManager);
 
-        given(todoRepository.findById(todoId)).willReturn(Optional.of(todo));
-        given(managerRepository.findByTodoIdWithUser(todoId)).willReturn(managerList);
+        given(todoFinder.find(todoId)).willReturn(todo);
+        given(managerReader.findWithUserByTodoId(todoId)).willReturn(managerList);
 
         // when
         List<ManagerResponse> managerResponses = managerService.getManagers(todoId);
@@ -109,9 +124,9 @@ class ManagerServiceTest {
 
         ManagerSaveRequest managerSaveRequest = new ManagerSaveRequest(managerUserId); // request dto 생성
 
-        given(todoRepository.findById(todoId)).willReturn(Optional.of(todo));
-        given(userRepository.findById(managerUserId)).willReturn(Optional.of(managerUser));
-        given(managerRepository.save(any(Manager.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(todoFinder.find(todoId)).willReturn(todo);
+        given(userFinder.findManagerUser(managerUserId)).willReturn(managerUser);
+        doNothing().when(managerWriter).create(any(Manager.class));
 
         // when
         ManagerSaveResponse response = managerService.saveManager(authUser, todoId, managerSaveRequest);

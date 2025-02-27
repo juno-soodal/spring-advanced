@@ -15,4 +15,5 @@ public class CommentSaveResponse {
         this.contents = contents;
         this.user = user;
     }
+
 }
